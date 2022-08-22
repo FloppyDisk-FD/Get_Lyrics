@@ -15,7 +15,7 @@ inquirer.prompt(prompt).then((answers) => {
 
   axios({
     method: "get",
-    url: "http://127.0.0.1:3300/lyric",
+    url: "https://service-47o75c8f-1301683732.sh.apigw.tencentcs.com/release/lyric",
     params: {
       songmid: songmid
     }
