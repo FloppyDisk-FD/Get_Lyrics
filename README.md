@@ -32,5 +32,8 @@ https://y.qq.com/n/ryqq/songDetail/0017K7gL4WYnw2
 ## TODO
 - [ ] 网页操作
 - [ ] 将歌词直接内嵌歌曲
+- [ ] 增加网易云音乐源
+- [ ] 完整的标签修改
+- [ ] 安卓APP
 ## 其他
 本工具使用到的API为 [https://github.com/jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)
