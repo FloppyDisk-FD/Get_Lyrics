@@ -7,11 +7,11 @@
 #### 1. 安装依赖
 
 ```
-npm install
+pnpm install
 ```
 或
 ```
-yarn install
+npm install
 ```
 #### 2.运行
 ```
@@ -26,12 +26,22 @@ https://y.qq.com/n/ryqq/songDetail/0017K7gL4WYnw2
 #### 4.输入songmid
 运行`index.js`后，在命令行中输入获取到的songmid，输入后歌词将存于本目录下`lyric.txt`文件中
 ### - 嵌入歌词
-1. 使用音乐标签内嵌歌词
-1. 将后缀改为lrc外置歌词
+####方法1: 使用工具自带的嵌入功能
+前提条件: 下载 [ffmpeg](https://ffmpeg.org/ "ffmpeg") ，放入指定目录
+##### 1. 编辑脚本
+编辑`index.js`文件
+```
+const ffmpeg_path = "你的ffmpeg所在目录";
+//例如
+const ffmpeg_path = "./ffmpeg/ffmpeg.exe";
+```
+##### 2.输入歌曲文件名
+在提示的问题中输入歌曲文件名，例如歌曲文件名为`test.flac`，那么就输入***test.flac***
+####方法2: 使用音乐标签APP
 
 ## TODO
+- [x] 将歌词直接内嵌歌曲
 - [ ] 网页操作
-- [ ] 将歌词直接内嵌歌曲
 - [ ] 增加网易云音乐源
 - [ ] 完整的标签修改
 - [ ] 安卓APP
