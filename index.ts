@@ -2,13 +2,37 @@ import ffmetadata from "ffmetadata";
 import inquirer from "inquirer";
 import { Command } from "commander";
 import { promisify } from "node:util";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 
 const writeMetadata = promisify(ffmetadata.write);
+const readMetadata = promisify(ffmetadata.read);
 
 const API_URL = "https://service-47o75c8f-1301683732.sh.apigw.tencentcs.com/release/lyric";
-const FFMPEG_PATH = "";
 const OUTPUT_FILE = "./lyric.txt";
 const LRC_ERROR_SIGNATURE = "ºw^~)Þ";
+
+function resolveFfmpegPath(): string {
+  const exe = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+
+  const candidates = [
+    process.env.FFMPEG_PATH,
+    join(import.meta.dir, "bin", exe),
+    join(import.meta.dir, "..", "bin", exe),
+    join(process.cwd(), "bin", exe),
+  ];
+
+  for (const p of candidates) {
+    if (p && existsSync(p)) {
+      return p;
+    }
+  }
+
+  return "ffmpeg";
+}
+
+const FFMPEG_PATH = resolveFfmpegPath();
+ffmetadata.setFfmpegPath(FFMPEG_PATH);
 
 interface LyricResponse {
   data: {
@@ -105,7 +129,6 @@ async function embedLyric(filename: string, lyric: string, trans: string): Promi
   const data = {
     lyrics: lyric + trans
   };
-  ffmetadata.setFfmpegPath(FFMPEG_PATH);
   await writeMetadata(filename, data);
   console.log("歌词嵌入成功! ");
 }

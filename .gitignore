@@ -2,3 +2,6 @@
 **/node_modules
 lyric.txt
 **/ffmpeg.*
+/bin/
+/get-lyrics
+/dist/
