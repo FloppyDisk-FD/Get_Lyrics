@@ -34,22 +34,33 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential yasm nasm pkg-config curl xz-utils
+          sudo apt-get install -y build-essential yasm nasm pkg-config curl xz-utils upx-ucl
 
       - name: Install build dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install yasm nasm pkg-config
+          brew install yasm nasm pkg-config upx
 
       - name: Install build dependencies (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install yasm nasm --no-progress -y
+          choco install yasm nasm upx --no-progress -y
 
       - name: Build FFmpeg
         shell: bash
         run: bash scripts/build-ffmpeg.sh
+
+      - name: Strip & UPX compress FFmpeg
+        shell: bash
+        run: |
+          if command -v strip &>/dev/null; then
+            strip bin/${{ matrix.ffmpeg_exe }} || true
+          fi
+          if command -v upx &>/dev/null; then
+            upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || true
+          fi
+          ls -lh bin/${{ matrix.ffmpeg_exe }}
 
       - name: Normalize ffmpeg binary name for embedding
         shell: bash
@@ -73,6 +84,17 @@ jobs:
         shell: bash
         run: |
           bun build index.ts --compile --outfile ${{ matrix.get_lyrics_exe }}
+          ls -lh ${{ matrix.get_lyrics_exe }}
+
+      - name: Strip & UPX compress get-lyrics
+        shell: bash
+        run: |
+          if command -v strip &>/dev/null; then
+            strip ${{ matrix.get_lyrics_exe }} || true
+          fi
+          if command -v upx &>/dev/null; then
+            upx --best --lzma ${{ matrix.get_lyrics_exe }} || true
+          fi
           ls -lh ${{ matrix.get_lyrics_exe }}
 
       - name: Package FFmpeg
