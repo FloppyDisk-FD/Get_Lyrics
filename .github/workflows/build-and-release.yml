@@ -45,7 +45,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install yasm nasm upx --no-progress -y
+          choco install yasm nasm upx pkgconfig --no-progress -y
 
       - name: Build FFmpeg
         shell: bash
