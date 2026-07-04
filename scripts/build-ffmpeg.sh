@@ -47,6 +47,8 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --disable-swscale \
   --disable-ffplay \
   --disable-ffprobe \
+  --disable-encoders \
+  --disable-decoders \
   --disable-muxers \
   --disable-demuxers \
   --disable-parsers \
@@ -54,6 +56,8 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --disable-indevs \
   --disable-outdevs \
   --disable-filters \
+  --disable-devices \
+  --disable-hwaccels \
   --enable-filter=aformat \
   --enable-filter=anull \
   --enable-filter=atrim \
