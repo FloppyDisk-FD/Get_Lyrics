@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ffmpeg:
-    name: Build FFmpeg (${{ matrix.os }})
+  build:
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -16,13 +16,16 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux-x64
-            exe: ffmpeg
+            ffmpeg_exe: ffmpeg
+            get_lyrics_exe: get-lyrics
           - os: macos-latest
             platform: macos-x64
-            exe: ffmpeg
+            ffmpeg_exe: ffmpeg
+            get_lyrics_exe: get-lyrics
           - os: windows-latest
             platform: win-x64
-            exe: ffmpeg.exe
+            ffmpeg_exe: ffmpeg.exe
+            get_lyrics_exe: get-lyrics.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -48,44 +51,15 @@ jobs:
         shell: bash
         run: bash scripts/build-ffmpeg.sh
 
-      - name: Package binary
+      - name: Normalize ffmpeg binary name for embedding
         shell: bash
         run: |
-          mkdir -p dist/ffmpeg-${{ matrix.platform }}
-          cp bin/${{ matrix.exe }} dist/ffmpeg-${{ matrix.platform }}/
-          cd dist
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            7z a -ttar ffmpeg-${{ matrix.platform }}.tar ffmpeg-${{ matrix.platform }}/
-            7z a -tgzip ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}.tar
+            cp bin/${{ matrix.ffmpeg_exe }} bin/ffmpeg
           else
-            tar -czf ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}/
+            ln -sf ${{ matrix.ffmpeg_exe }} bin/ffmpeg
           fi
-          ls -lh ffmpeg-${{ matrix.platform }}.tar.gz
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-${{ matrix.platform }}
-          path: dist/ffmpeg-${{ matrix.platform }}.tar.gz
-
-  build-get-lyrics:
-    name: Build get-lyrics (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux-x64
-            exe: get-lyrics
-          - os: macos-latest
-            platform: macos-x64
-            exe: get-lyrics
-          - os: windows-latest
-            platform: win-x64
-            exe: get-lyrics.exe
-
-    steps:
-      - uses: actions/checkout@v4
+          ls -lh bin/
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -95,17 +69,31 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build get-lyrics binary
+      - name: Build get-lyrics binary (with embedded ffmpeg)
         shell: bash
         run: |
-          bun build index.ts --compile --outfile ${{ matrix.exe }}
-          ls -lh ${{ matrix.exe }}
+          bun build index.ts --compile --outfile ${{ matrix.get_lyrics_exe }}
+          ls -lh ${{ matrix.get_lyrics_exe }}
 
-      - name: Package binary
+      - name: Package FFmpeg
+        shell: bash
+        run: |
+          mkdir -p dist/ffmpeg-${{ matrix.platform }}
+          cp bin/${{ matrix.ffmpeg_exe }} dist/ffmpeg-${{ matrix.platform }}/
+          cd dist
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            7z a -ttar ffmpeg-${{ matrix.platform }}.tar ffmpeg-${{ matrix.platform }}/
+            7z a -tgzip ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}.tar
+          else
+            tar -czf ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}/
+          fi
+          ls -lh ffmpeg-${{ matrix.platform }}.tar.gz
+
+      - name: Package get-lyrics
         shell: bash
         run: |
           mkdir -p dist/get-lyrics-${{ matrix.platform }}
-          cp ${{ matrix.exe }} dist/get-lyrics-${{ matrix.platform }}/
+          cp ${{ matrix.get_lyrics_exe }} dist/get-lyrics-${{ matrix.platform }}/
           cd dist
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             7z a -ttar get-lyrics-${{ matrix.platform }}.tar get-lyrics-${{ matrix.platform }}/
@@ -117,12 +105,17 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: ffmpeg-${{ matrix.platform }}
+          path: dist/ffmpeg-${{ matrix.platform }}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
           name: get-lyrics-${{ matrix.platform }}
           path: dist/get-lyrics-${{ matrix.platform }}.tar.gz
 
   release:
     name: Create Release
-    needs: [build-ffmpeg, build-get-lyrics]
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:

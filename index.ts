@@ -3,7 +3,11 @@ import inquirer from "inquirer";
 import { Command } from "commander";
 import { promisify } from "node:util";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+// @ts-ignore: Bun file import
+import ffmpegBinary from "./bin/ffmpeg" with { type: "file" };
 
 const writeMetadata = promisify(ffmetadata.write);
 const readMetadata = promisify(ffmetadata.read);
@@ -12,7 +16,27 @@ const API_URL = "https://service-47o75c8f-1301683732.sh.apigw.tencentcs.com/rele
 const OUTPUT_FILE = "./lyric.txt";
 const LRC_ERROR_SIGNATURE = "ºw^~)Þ";
 
-function resolveFfmpegPath(): string {
+async function extractEmbeddedFfmpeg(): Promise<string> {
+  const exeName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const version = "7.1-minimal";
+  const hash = createHash("md5").update(version + process.platform).digest("hex").slice(0, 8);
+  const extractDir = join(tmpdir(), `get-lyrics-ffmpeg-${hash}`);
+  const extractPath = join(extractDir, exeName);
+
+  if (existsSync(extractPath)) {
+    return extractPath;
+  }
+
+  const file = ffmpegBinary as Blob;
+  const buf = Buffer.from(await file.arrayBuffer());
+
+  await Bun.write(extractPath, buf);
+  chmodSync(extractPath, 0o755);
+
+  return extractPath;
+}
+
+async function resolveFfmpegPath(): Promise<string> {
   const exe = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
 
   const candidates = [
@@ -28,10 +52,14 @@ function resolveFfmpegPath(): string {
     }
   }
 
-  return "ffmpeg";
+  try {
+    return await extractEmbeddedFfmpeg();
+  } catch {
+    return "ffmpeg";
+  }
 }
 
-const FFMPEG_PATH = resolveFfmpegPath();
+const FFMPEG_PATH = await resolveFfmpegPath();
 ffmetadata.setFfmpegPath(FFMPEG_PATH);
 
 interface LyricResponse {
