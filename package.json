@@ -5,6 +5,9 @@
   "main": "index.js",
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "start": "bun index.js"
+  },
   "dependencies": {
     "axios": "^0.27.2",
     "ffmetadata": "^1.7.0",
