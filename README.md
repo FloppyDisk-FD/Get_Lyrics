@@ -2,21 +2,7 @@
 一个简易获取QQ音乐歌词的工具
 
 ## 使用
-### - 获取歌词
-请预先安装Node环境
-#### 1. 安装依赖
 
-```
-pnpm install
-```
-或
-```
-npm install
-```
-#### 2.运行
-```
-node index.js
-```
 #### 3.获取 songmid
 在QQ音乐APP或客户端复制歌曲链接，在浏览器中打开，会得到如`https://y.qq.com/n/ryqq/songDetail/********`风格链接，例如：
 ```
