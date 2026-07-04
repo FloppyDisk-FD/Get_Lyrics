@@ -66,7 +66,28 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          cp bin/${{ matrix.ffmpeg_exe }} bin/ffmpeg
+          set -euo pipefail
+          SRC="bin/${{ matrix.ffmpeg_exe }}"
+          DST="bin/ffmpeg"
+
+          if [ ! -e "$SRC" ]; then
+            echo "Source $SRC not found"
+            exit 1
+          fi
+
+          if [ ! -e "$DST" ]; then
+            echo "Destination $DST not found - copying $SRC -> $DST"
+            cp "$SRC" "$DST"
+          else
+            # 如果目标已存在，只有在两个文件内容不同时才拷贝（避免 'same file' 错误）
+            if ! cmp -s "$SRC" "$DST"; then
+              echo "Destination $DST exists but is different - copying $SRC -> $DST"
+              cp "$SRC" "$DST"
+            else
+              echo "Destination $DST already exists and is identical to $SRC - skipping copy"
+            fi
+          fi
+
           ls -lh bin/
 
       - name: Setup Bun
