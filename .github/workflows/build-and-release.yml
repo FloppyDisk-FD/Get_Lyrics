@@ -63,13 +63,10 @@ jobs:
           ls -lh bin/${{ matrix.ffmpeg_exe }}
 
       - name: Normalize ffmpeg binary name for embedding
+        if: runner.os == 'Windows'
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp bin/${{ matrix.ffmpeg_exe }} bin/ffmpeg
-          else
-            ln -sf ${{ matrix.ffmpeg_exe }} bin/ffmpeg
-          fi
+          cp bin/${{ matrix.ffmpeg_exe }} bin/ffmpeg
           ls -lh bin/
 
       - name: Setup Bun
