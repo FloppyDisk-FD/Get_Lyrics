@@ -90,6 +90,15 @@ jobs:
 
           ls -lh bin/
 
+      - name: Patch index.ts import for Windows runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $file = "index.ts"
+          if (-not (Test-Path $file)) { Write-Error "index.ts not found"; exit 1 }
+          (Get-Content $file -Raw) -replace 'import ffmpegBinary from "./bin/ffmpeg" with { type: "file" };', 'import ffmpegBinary from "./bin/ffmpeg.exe" with { type: "file" };' | Set-Content $file
+          Write-Host "Patched index.ts -> use ./bin/ffmpeg.exe for Windows"
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
