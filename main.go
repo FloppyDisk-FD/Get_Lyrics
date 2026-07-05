@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"crypto/md5"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -18,9 +17,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-//go:embed bin/ffmpeg
-var ffmpegFS embed.FS
 
 const (
 	defaultAPI    = "https://api.i-meto.com/meting/api"
@@ -79,7 +75,7 @@ func extractEmbeddedFfmpeg() (string, error) {
 		return extractPath, nil
 	}
 
-	data, err := ffmpegFS.ReadFile("bin/ffmpeg")
+	data, err := ffmpegFS.ReadFile(ffmpegEmbedPath())
 	if err != nil {
 		return "", fmt.Errorf("read embedded ffmpeg: %w", err)
 	}
