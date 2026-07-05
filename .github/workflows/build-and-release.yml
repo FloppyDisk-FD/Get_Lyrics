@@ -53,11 +53,20 @@ jobs:
         run: |
           choco install yasm nasm upx pkgconfiglite --no-progress -y
 
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: bin/${{ matrix.ffmpeg_exe }}
+          key: ffmpeg-${{ runner.os }}-${{ matrix.goarch }}-7.1
+
       - name: Build FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: bash
         run: bash scripts/build-ffmpeg.sh
 
       - name: Strip FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           if command -v strip &>/dev/null; then
@@ -66,12 +75,17 @@ jobs:
           ls -lh bin/${{ matrix.ffmpeg_exe }}
 
       - name: UPX compress FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: bash
         run: |
           if command -v upx &>/dev/null; then
             upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || upx --best bin/${{ matrix.ffmpeg_exe }} || true
           fi
           ls -lh bin/${{ matrix.ffmpeg_exe }}
+
+      - name: Verify FFmpeg
+        shell: bash
+        run: ls -lh bin/${{ matrix.ffmpeg_exe }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
