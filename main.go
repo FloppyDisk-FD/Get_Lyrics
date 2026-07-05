@@ -60,6 +60,89 @@ func init() {
 	if envURL := os.Getenv("METING_API"); envURL != "" {
 		apiConfig.BaseURL = envURL
 	}
+
+	// 自动配置系统代理：优先环境变量，Windows 下回退到注册表系统代理
+	transport := &http.Transport{}
+	if proxyURL := resolveSystemProxy(); proxyURL != nil {
+		transport.Proxy = http.ProxyURL(proxyURL)
+	} else {
+		// 环境变量代理（HTTP_PROXY/HTTPS_PROXY）
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+	httpClient.Transport = transport
+}
+
+// resolveSystemProxy 读取系统代理设置。
+// Windows: 从注册表读取 IE/系统代理配置（浏览器使用的同一套设置）。
+// 其他平台: 返回 nil，交给 http.ProxyFromEnvironment 处理。
+func resolveSystemProxy() *url.URL {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+
+	// 仅 Windows：通过 reg query 读取注册表中的代理设置
+	out, err := exec.Command("reg", "query",
+		`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`,
+		"/v", "ProxyEnable").CombinedOutput()
+	if err != nil {
+		return nil
+	}
+	// 未启用系统代理
+	if !strings.Contains(string(out), "0x1") {
+		return nil
+	}
+
+	out, err = exec.Command("reg", "query",
+		`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`,
+		"/v", "ProxyServer").CombinedOutput()
+	if err != nil {
+		return nil
+	}
+
+	// 解析 ProxyServer 值，格式可能为 "host:port" 或 "http=host:port;https=..."
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "ProxyServer") {
+			continue
+		}
+		// 取 REG_SZ 后的值
+		parts := strings.SplitN(line, "REG_SZ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		raw := strings.TrimSpace(parts[1])
+		if raw == "" {
+			continue
+		}
+
+		// 多协议格式：http=127.0.0.1:7890;https=127.0.0.1:7890
+		if strings.Contains(raw, "=") {
+			for _, seg := range strings.Split(raw, ";") {
+				seg = strings.TrimSpace(seg)
+				if strings.HasPrefix(seg, "http=") || strings.HasPrefix(seg, "https=") {
+					addr := strings.TrimPrefix(strings.TrimPrefix(seg, "http="), "https=")
+					if u, err := parseProxyAddr(addr); err == nil {
+						return u
+					}
+				}
+			}
+			return nil
+		}
+		// 单一格式：127.0.0.1:7890
+		if u, err := parseProxyAddr(raw); err == nil {
+			return u
+		}
+	}
+	return nil
+}
+
+// parseProxyAddr 将 host:port 转为 *url.URL
+func parseProxyAddr(addr string) (*url.URL, error) {
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
+	return url.Parse(addr)
 }
 
 func ffmpegName() string {
