@@ -51,14 +51,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install yasm nasm upx pkgconfiglite --no-progress -y
+          choco install yasm nasm upx pkgconfiglite mingw --no-progress -y
+          echo "C:\ProgramData\mingw64\bin" >> $GITHUB_PATH
+          echo "C:\tools\mingw64\bin" >> $GITHUB_PATH
 
       - name: Cache FFmpeg
         id: cache-ffmpeg
         uses: actions/cache@v4
         with:
           path: bin/${{ matrix.ffmpeg_exe }}
-          key: ffmpeg-${{ runner.os }}-${{ matrix.goarch }}-7.1
+          key: ffmpeg-${{ runner.os }}-${{ matrix.goarch }}-7.1-static
 
       - name: Build FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'

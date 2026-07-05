@@ -35,10 +35,9 @@ echo "==> Configuring FFmpeg (minimal build)..."
 EXTRA_CFLAGS=""
 EXTRA_LDFLAGS=""
 
-# Windows: 静态链接 MSVC 运行库，避免用户系统缺少 vcruntime.dll 导致 0xc0000135 错误
+# Windows: 静态链接，避免用户系统缺少运行库 DLL 导致 0xc0000135 错误
 if [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
-  EXTRA_CFLAGS="-MT"
-  EXTRA_LDFLAGS="-static"
+  EXTRA_LDFLAGS="-static -static-libgcc"
 fi
 
 ./configure \
