@@ -51,12 +51,18 @@ jobs:
         shell: bash
         run: bash scripts/build-ffmpeg.sh
 
-      - name: Strip & UPX compress FFmpeg
+      - name: Strip FFmpeg
         shell: bash
         run: |
           if command -v strip &>/dev/null; then
             strip bin/${{ matrix.ffmpeg_exe }} || true
           fi
+          ls -lh bin/${{ matrix.ffmpeg_exe }}
+
+      - name: UPX compress FFmpeg (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
           if command -v upx &>/dev/null; then
             upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || true
           fi
@@ -113,14 +119,11 @@ jobs:
           bun build index.ts --compile --outfile ${{ matrix.get_lyrics_exe }}
           ls -lh ${{ matrix.get_lyrics_exe }}
 
-      - name: Strip & UPX compress get-lyrics
+      - name: Strip get-lyrics
         shell: bash
         run: |
           if command -v strip &>/dev/null; then
             strip ${{ matrix.get_lyrics_exe }} || true
-          fi
-          if command -v upx &>/dev/null; then
-            upx --best --lzma ${{ matrix.get_lyrics_exe }} || true
           fi
           ls -lh ${{ matrix.get_lyrics_exe }}
 
