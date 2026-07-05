@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -46,6 +47,10 @@ type APIConfig struct {
 }
 
 var apiConfig APIConfig
+
+var httpClient = &http.Client{
+	Timeout: 15 * time.Second,
+}
 
 func init() {
 	apiConfig = APIConfig{
@@ -132,7 +137,7 @@ func metingAPI(t, id string, extra map[string]string) ([]byte, error) {
 	}
 
 	url := apiConfig.BaseURL + "?" + params.Encode()
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
