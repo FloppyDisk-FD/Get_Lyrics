@@ -25,20 +25,14 @@ const (
 	ffmpegVersion = "7.1-minimal"
 )
 
+// Song 对应 Meting API 搜索结果的实际返回结构
+// 字段: title/author/url/pic/lrc（lrc 为获取歌词的完整 URL，含 auth 参数）
 type Song struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Artist   []string `json:"artist"`
-	Album    string   `json:"album"`
-	PicID    string   `json:"pic_id"`
-	URLID    string   `json:"url_id"`
-	LyricID  string   `json:"lyric_id"`
-	Source   string   `json:"source"`
-}
-
-type LyricResult struct {
-	Lyric string `json:"lyric"`
-	Trans string `json:"tlyric"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	URL    string `json:"url"`
+	Pic    string `json:"pic"`
+	Lrc    string `json:"lrc"`
 }
 
 type APIConfig struct {
@@ -249,49 +243,43 @@ func searchSongs(keyword string, limit int) ([]Song, error) {
 	return songs, nil
 }
 
-func getLyric(songID string) (string, string, error) {
-	body, err := metingAPI("lyric", songID, nil)
+// getLyric 直接请求搜索结果中的 lrc URL 获取歌词文本
+// Meting API 的 lrc 字段返回纯文本 LRC 格式歌词（非 JSON）
+func getLyric(lrcURL string) (string, error) {
+	if lrcURL == "" {
+		return "", fmt.Errorf("歌词 URL 为空")
+	}
+	resp, err := httpClient.Get(lrcURL)
 	if err != nil {
-		return "", "", err
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("request failed, status: %d", resp.StatusCode)
 	}
 
-	var result LyricResult
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", "", fmt.Errorf("parse lyric result: %w", err)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read lyric: %w", err)
 	}
 
-	return result.Lyric, result.Trans, nil
+	return string(body), nil
 }
 
-func saveLyricToFile(lyric, trans string) error {
+func saveLyricToFile(lyric string) error {
 	if lyric == "" {
 		return fmt.Errorf("歌词为空")
 	}
 
-	content := lyric
-	if err := os.WriteFile(outputFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(outputFile, []byte(lyric), 0o644); err != nil {
 		return fmt.Errorf("write lyric: %w", err)
 	}
 	fmt.Println("\n✓ 歌词写入成功！文件: lyric.txt")
-
-	if trans != "" {
-		f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			return fmt.Errorf("open lyric for append: %w", err)
-		}
-		defer f.Close()
-		if _, err := f.WriteString("\n\n" + trans); err != nil {
-			return fmt.Errorf("append trans: %w", err)
-		}
-		fmt.Println("✓ 翻译已追加")
-	} else {
-		fmt.Println("ℹ 本歌曲暂无翻译")
-	}
-
 	return nil
 }
 
-func embedLyric(ffmpegPath, filename, lyric, trans string) error {
+func embedLyric(ffmpegPath, filename, lyric string) error {
 	ext := strings.ToLower(filepath.Ext(filename))
 	isMp3 := ext == ".mp3"
 
@@ -300,21 +288,16 @@ func embedLyric(ffmpegPath, filename, lyric, trans string) error {
 
 	args := []string{"-y", "-i", filename}
 
-	fullLyric := lyric
-	if trans != "" {
-		fullLyric = lyric + "\n\n" + trans
-	}
-
 	if isMp3 {
 		args = append(args,
-			"-metadata", "lyrics="+fullLyric,
-			"-metadata", "lyric="+fullLyric,
+			"-metadata", "lyrics="+lyric,
+			"-metadata", "lyric="+lyric,
 			"-id3v2_version", "3",
 			"-write_id3v1", "1",
 		)
 	} else {
 		args = append(args,
-			"-metadata", "lyrics="+fullLyric,
+			"-metadata", "lyrics="+lyric,
 		)
 	}
 
@@ -374,10 +357,9 @@ func promptInt(reader *bufio.Reader, prompt string, min, max int) (int, bool) {
 func printSongList(songs []Song) {
 	fmt.Println("\n═══════════════════════════════════════════")
 	for i, s := range songs {
-		artist := strings.Join(s.Artist, ", ")
 		idx := i + 1
-		fmt.Printf("  %2d. %s\n", idx, s.Name)
-		fmt.Printf("      %s - %s\n", artist, s.Album)
+		fmt.Printf("  %2d. %s\n", idx, s.Title)
+		fmt.Printf("      %s\n", s.Author)
 	}
 	fmt.Println("═══════════════════════════════════════════")
 }
@@ -435,16 +417,16 @@ func interactiveMode(reader *bufio.Reader) {
 				fmt.Printf("\n✗ %v\n", err)
 				continue
 			}
-			fmt.Printf("\n  已选择: %s - %s\n", strings.Join(song.Artist, ", "), song.Name)
+			fmt.Printf("\n  已选择: %s - %s\n", song.Author, song.Title)
 			fmt.Print("  正在获取歌词... ")
-			lyric, trans, err := getLyric(song.ID)
+			lyric, err := getLyric(song.Lrc)
 			if err != nil {
 				fmt.Println("失败")
 				fmt.Printf("✗ %v\n", err)
 				continue
 			}
 			fmt.Println("完成")
-			if err := saveLyricToFile(lyric, trans); err != nil {
+			if err := saveLyricToFile(lyric); err != nil {
 				fmt.Printf("✗ %v\n", err)
 			}
 
@@ -454,7 +436,7 @@ func interactiveMode(reader *bufio.Reader) {
 				fmt.Printf("\n✗ %v\n", err)
 				continue
 			}
-			fmt.Printf("\n  已选择: %s - %s\n", strings.Join(song.Artist, ", "), song.Name)
+			fmt.Printf("\n  已选择: %s - %s\n", song.Author, song.Title)
 
 			filename := promptString(reader, "\n📁 请输入音频文件路径: ")
 			if filename == "" {
@@ -467,7 +449,7 @@ func interactiveMode(reader *bufio.Reader) {
 			}
 
 			fmt.Print("  正在获取歌词... ")
-			lyric, trans, err := getLyric(song.ID)
+			lyric, err := getLyric(song.Lrc)
 			if err != nil {
 				fmt.Println("失败")
 				fmt.Printf("✗ %v\n", err)
@@ -476,7 +458,7 @@ func interactiveMode(reader *bufio.Reader) {
 			fmt.Println("完成")
 
 			ffmpegPath := resolveFfmpegPath()
-			if err := embedLyric(ffmpegPath, filename, lyric, trans); err != nil {
+			if err := embedLyric(ffmpegPath, filename, lyric); err != nil {
 				fmt.Printf("✗ %v\n", err)
 				continue
 			}
@@ -526,13 +508,12 @@ func platformName(server string) string {
 
 func main() {
 	var (
-		songID    = flag.String("id", "", "歌曲 ID")
-		keyword   = flag.String("k", "", "搜索关键词（交互式选择）")
-		embed     = flag.Bool("e", false, "嵌入歌词到歌曲文件")
-		filename  = flag.String("f", "", "音频文件路径（嵌入模式使用）")
-		server    = flag.String("p", "netease", "音乐平台: netease/tencent/kugou/kuwo/baidu")
-		apiURL    = flag.String("api", "", "Meting API 地址")
-		showHelp  = flag.Bool("h", false, "显示帮助")
+		keyword  = flag.String("k", "", "搜索关键词（交互式选择）")
+		embed    = flag.Bool("e", false, "嵌入歌词到歌曲文件")
+		filename = flag.String("f", "", "音频文件路径（嵌入模式使用）")
+		server   = flag.String("p", "netease", "音乐平台: netease/tencent/kugou/kuwo/baidu")
+		apiURL   = flag.String("api", "", "Meting API 地址")
+		showHelp = flag.Bool("h", false, "显示帮助")
 	)
 
 	flag.Usage = func() {
@@ -540,7 +521,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "用法:\n")
 		fmt.Fprintf(os.Stderr, "  get-lyrics                    交互模式\n")
 		fmt.Fprintf(os.Stderr, "  get-lyrics -k 关键词          搜索歌曲并选择\n")
-		fmt.Fprintf(os.Stderr, "  get-lyrics -id 歌曲ID         直接通过ID获取歌词\n")
 		fmt.Fprintf(os.Stderr, "  get-lyrics -k 关键词 -e -f a.mp3   搜索并嵌入歌词\n\n")
 		fmt.Fprintf(os.Stderr, "选项:\n")
 		flag.PrintDefaults()
@@ -559,49 +539,43 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	hasID := *songID != ""
 	hasKeyword := *keyword != ""
 	hasEmbed := *embed
 	hasFile := *filename != ""
 
-	if !hasID && !hasKeyword && !hasEmbed && !hasFile {
+	if !hasKeyword && !hasEmbed && !hasFile {
 		interactiveMode(reader)
 		return
 	}
 
-	var song *Song
-
-	if hasID {
-		song = &Song{ID: *songID}
-	} else if hasKeyword {
-		var err error
-		fmt.Print("正在搜索... ")
-		songs, err := searchSongs(*keyword, 10)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "搜索失败: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("找到 %d 首\n", len(songs))
-
-		if len(songs) == 0 {
-			fmt.Fprintln(os.Stderr, "未找到相关歌曲")
-			os.Exit(1)
-		}
-
-		printSongList(songs)
-		n, ok := promptInt(reader, "\n请选择歌曲编号 (1-"+strconv.Itoa(len(songs))+"): ", 1, len(songs))
-		if !ok {
-			fmt.Fprintln(os.Stderr, "已取消")
-			os.Exit(1)
-		}
-		song = &songs[n-1]
-	} else {
+	if !hasKeyword {
 		flag.Usage()
 		os.Exit(1)
 	}
 
+	fmt.Print("正在搜索... ")
+	songs, err := searchSongs(*keyword, 10)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "搜索失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("找到 %d 首\n", len(songs))
+
+	if len(songs) == 0 {
+		fmt.Fprintln(os.Stderr, "未找到相关歌曲")
+		os.Exit(1)
+	}
+
+	printSongList(songs)
+	n, ok := promptInt(reader, "\n请选择歌曲编号 (1-"+strconv.Itoa(len(songs))+"): ", 1, len(songs))
+	if !ok {
+		fmt.Fprintln(os.Stderr, "已取消")
+		os.Exit(1)
+	}
+	song := &songs[n-1]
+
 	fmt.Print("正在获取歌词... ")
-	lyric, trans, err := getLyric(song.ID)
+	lyric, err := getLyric(song.Lrc)
 	if err != nil {
 		fmt.Println("失败")
 		fmt.Fprintf(os.Stderr, "获取歌词失败: %v\n", err)
@@ -619,13 +593,13 @@ func main() {
 			os.Exit(1)
 		}
 		ffmpegPath := resolveFfmpegPath()
-		if err := embedLyric(ffmpegPath, *filename, lyric, trans); err != nil {
+		if err := embedLyric(ffmpegPath, *filename, lyric); err != nil {
 			fmt.Fprintf(os.Stderr, "嵌入失败: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Println("✓ 歌词嵌入成功！")
 	} else {
-		if err := saveLyricToFile(lyric, trans); err != nil {
+		if err := saveLyricToFile(lyric); err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
