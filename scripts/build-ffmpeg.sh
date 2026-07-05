@@ -32,6 +32,15 @@ cd "${SRC_DIR}"
 echo ""
 echo "==> Configuring FFmpeg (minimal build)..."
 
+EXTRA_CFLAGS=""
+EXTRA_LDFLAGS=""
+
+# Windows: 静态链接 MSVC 运行库，避免用户系统缺少 vcruntime.dll 导致 0xc0000135 错误
+if [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+  EXTRA_CFLAGS="-MT"
+  EXTRA_LDFLAGS="-static"
+fi
+
 ./configure \
   --disable-doc \
   --disable-network \
@@ -77,6 +86,8 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --enable-demuxer=aiff \
   --enable-muxer=wv \
   --enable-demuxer=wv \
+  --extra-cflags="$EXTRA_CFLAGS" \
+  --extra-ldflags="$EXTRA_LDFLAGS" \
   2>&1 | tail -50
 
 echo ""
