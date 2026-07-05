@@ -1,5 +1,6 @@
 *.log
 lyric.txt
+node_modules
 /bin/
 /get-lyrics
 /get-lyrics.exe

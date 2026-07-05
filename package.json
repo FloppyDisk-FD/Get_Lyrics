@@ -1,0 +1,9 @@
+{
+  "name": "meting-api",
+  "version": "1.0.0",
+  "description": "Meting API server for Vercel",
+  "type": "module",
+  "dependencies": {
+    "@meting/core": "^1.6.1"
+  }
+}
