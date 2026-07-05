@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -192,15 +193,33 @@ func resolveFfmpegPath() string {
 			continue
 		}
 		if _, err := os.Stat(p); err == nil {
-			return p
+			if ffmpegWorks(p) {
+				return p
+			}
 		}
 	}
 
 	if path, err := extractEmbeddedFfmpeg(); err == nil {
-		return path
+		if ffmpegWorks(path) {
+			return path
+		}
 	}
 
-	return "ffmpeg"
+	if path, err := exec.LookPath(name); err == nil {
+		if ffmpegWorks(path) {
+			return path
+		}
+	}
+
+	return name
+}
+
+// ffmpegWorks 检测给定路径的 ffmpeg 是否能正常运行
+func ffmpegWorks(path string) bool {
+	cmd := exec.Command(path, "-version")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
 }
 
 func metingAPI(t, id string, extra map[string]string) ([]byte, error) {
@@ -305,10 +324,22 @@ func embedLyric(ffmpegPath, filename, lyric string) error {
 
 	fmt.Print("  正在嵌入歌词... ")
 	cmd := exec.Command(ffmpegPath, args...)
-	cmd.Stderr = io.Discard
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Println("失败")
-		return fmt.Errorf("ffmpeg failed: %w", err)
+		exitCode := ""
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = fmt.Sprintf(" (退出码: %s)", exitErr.ExitCode())
+		}
+		errMsg := stderr.String()
+		if strings.Contains(errMsg, "STATUS_DLL_NOT_FOUND") || strings.Contains(errMsg, "0xc0000135") || strings.Contains(errMsg, "缺少 DLL") {
+			return fmt.Errorf("ffmpeg 启动失败：缺少依赖的 DLL 文件（常见于 Windows）。请安装 MSVC 运行库，或在系统 PATH 中安装 ffmpeg 后重试。原始错误: %w%s", err, exitCode)
+		}
+		if errMsg != "" {
+			return fmt.Errorf("ffmpeg failed%s: %s\n%s", exitCode, err, errMsg)
+		}
+		return fmt.Errorf("ffmpeg failed%s: %w", exitCode, err)
 	}
 	fmt.Println("完成")
 
