@@ -59,12 +59,11 @@ jobs:
           fi
           ls -lh bin/${{ matrix.ffmpeg_exe }}
 
-      - name: UPX compress FFmpeg (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: UPX compress FFmpeg
         shell: bash
         run: |
           if command -v upx &>/dev/null; then
-            upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || true
+            upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || upx --best bin/${{ matrix.ffmpeg_exe }} || true
           fi
           ls -lh bin/${{ matrix.ffmpeg_exe }}
 
@@ -116,7 +115,7 @@ jobs:
       - name: Build get-lyrics binary (with embedded ffmpeg)
         shell: bash
         run: |
-          bun build index.ts --compile --outfile ${{ matrix.get_lyrics_exe }}
+          bun build index.ts --compile --bytecode --minify --sourcemap=none --outfile ${{ matrix.get_lyrics_exe }}
           ls -lh ${{ matrix.get_lyrics_exe }}
 
       - name: Strip get-lyrics

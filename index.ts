@@ -1,16 +1,12 @@
-import ffmetadata from "ffmetadata";
 import inquirer from "inquirer";
 import { Command } from "commander";
-import { promisify } from "node:util";
-import { join } from "node:path";
-import { existsSync, chmodSync } from "node:fs";
+import { join, dirname, extname } from "node:path";
+import { existsSync, chmodSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 // @ts-ignore: Bun file import
 import ffmpegBinary from "./bin/ffmpeg" with { type: "file" };
-
-const writeMetadata = promisify(ffmetadata.write);
-const readMetadata = promisify(ffmetadata.read);
 
 const API_URL = "https://service-47o75c8f-1301683732.sh.apigw.tencentcs.com/release/lyric";
 const OUTPUT_FILE = "./lyric.txt";
@@ -60,7 +56,66 @@ async function resolveFfmpegPath(): Promise<string> {
 }
 
 const FFMPEG_PATH = await resolveFfmpegPath();
-ffmetadata.setFfmpegPath(FFMPEG_PATH);
+
+function ffmpeg(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFMPEG_PATH, args, { stdio: "pipe" });
+    let stderr = "";
+    proc.stderr.on("data", (data) => { stderr += data.toString(); });
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}\n${stderr}`));
+      }
+    });
+  });
+}
+
+async function writeLyricMetadata(filename: string, lyrics: string): Promise<void> {
+  const ext = extname(filename).toLowerCase();
+  const isMp3 = ext === ".mp3";
+
+  const tmpOut = join(
+    dirname(filename),
+    `.get-lyrics-tmp-${Date.now()}${ext}`
+  );
+
+  try {
+    const args: string[] = [
+      "-y",
+      "-i", filename,
+    ];
+
+    if (isMp3) {
+      args.push(
+        "-metadata", `lyrics=${lyrics}`,
+        "-metadata", `lyric=${lyrics}`,
+        "-id3v2_version", "3",
+        "-write_id3v1", "1",
+      );
+    } else {
+      args.push(
+        "-metadata", `lyrics=${lyrics}`,
+      );
+    }
+
+    args.push(
+      "-c", "copy",
+      "-map", "0",
+      tmpOut
+    );
+
+    await ffmpeg(args);
+
+    await Bun.write(filename, Bun.file(tmpOut));
+  } finally {
+    if (existsSync(tmpOut)) {
+      rmSync(tmpOut);
+    }
+  }
+}
 
 interface LyricResponse {
   data: {
@@ -154,10 +209,7 @@ async function saveLyricToFile(lyric: string, trans: string): Promise<void> {
 }
 
 async function embedLyric(filename: string, lyric: string, trans: string): Promise<void> {
-  const data = {
-    lyrics: lyric + trans
-  };
-  await writeMetadata(filename, data);
+  await writeLyricMetadata(filename, lyric + trans);
   console.log("歌词嵌入成功! ");
 }
 

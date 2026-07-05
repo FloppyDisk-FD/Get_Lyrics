@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "ffmetadata": "^1.7.0",
     "inquirer": "^9.3.8"
   },
   "devDependencies": {

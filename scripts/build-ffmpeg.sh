@@ -58,10 +58,6 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --disable-filters \
   --disable-devices \
   --disable-hwaccels \
-  --enable-filter=aformat \
-  --enable-filter=anull \
-  --enable-filter=atrim \
-  --enable-filter=crop \
   --enable-protocol=file \
   --enable-protocol=pipe \
   --enable-muxer=ffmetadata \
@@ -70,8 +66,6 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --enable-demuxer=mp3 \
   --enable-muxer=mp4 \
   --enable-demuxer=mov \
-  --enable-muxer=m4v \
-  --enable-demuxer=m4v \
   --enable-muxer=flac \
   --enable-demuxer=flac \
   --enable-muxer=oga \
@@ -83,12 +77,6 @@ echo "==> Configuring FFmpeg (minimal build)..."
   --enable-demuxer=aiff \
   --enable-muxer=wv \
   --enable-demuxer=wv \
-  --enable-muxer=mpegts \
-  --enable-demuxer=mpegts \
-  --enable-muxer=ac3 \
-  --enable-demuxer=ac3 \
-  --enable-muxer=dts \
-  --enable-demuxer=dts \
   2>&1 | tail -50
 
 echo ""
