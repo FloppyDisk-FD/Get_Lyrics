@@ -115,7 +115,7 @@ jobs:
       - name: Build get-lyrics binary (with embedded ffmpeg)
         shell: bash
         run: |
-          bun build index.ts --compile --bytecode --minify --sourcemap=none --outfile ${{ matrix.get_lyrics_exe }}
+          bun build index.ts --compile --minify --sourcemap=none --outfile ${{ matrix.get_lyrics_exe }}
           ls -lh ${{ matrix.get_lyrics_exe }}
 
       - name: Strip get-lyrics
