@@ -1,0 +1,180 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+            goos: linux
+            goarch: amd64
+            ffmpeg_exe: ffmpeg
+            get_lyrics_exe: get-lyrics
+          - os: macos-latest
+            platform: macos-x64
+            goos: darwin
+            goarch: amd64
+            ffmpeg_exe: ffmpeg
+            get_lyrics_exe: get-lyrics
+          - os: windows-latest
+            platform: win-x64
+            goos: windows
+            goarch: amd64
+            ffmpeg_exe: ffmpeg.exe
+            get_lyrics_exe: get-lyrics.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential yasm nasm pkg-config curl xz-utils upx-ucl
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install yasm nasm pkg-config upx
+
+      - name: Install build dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install yasm nasm upx pkgconfiglite --no-progress -y
+
+      - name: Build FFmpeg
+        shell: bash
+        run: bash scripts/build-ffmpeg.sh
+
+      - name: Strip FFmpeg
+        shell: bash
+        run: |
+          if command -v strip &>/dev/null; then
+            strip bin/${{ matrix.ffmpeg_exe }} || true
+          fi
+          ls -lh bin/${{ matrix.ffmpeg_exe }}
+
+      - name: UPX compress FFmpeg
+        shell: bash
+        run: |
+          if command -v upx &>/dev/null; then
+            upx --best --lzma bin/${{ matrix.ffmpeg_exe }} || upx --best bin/${{ matrix.ffmpeg_exe }} || true
+          fi
+          ls -lh bin/${{ matrix.ffmpeg_exe }}
+
+      - name: Normalize ffmpeg binary name for embedding
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="bin/${{ matrix.ffmpeg_exe }}"
+          DST="bin/ffmpeg"
+
+          if [ ! -e "$SRC" ]; then
+            echo "Source $SRC not found"
+            exit 1
+          fi
+
+          if [ ! -e "$DST" ]; then
+            echo "Destination $DST not found - copying $SRC -> $DST"
+            cp "$SRC" "$DST"
+          else
+            if ! cmp -s "$SRC" "$DST"; then
+              echo "Destination $DST exists but is different - copying $SRC -> $DST"
+              cp "$SRC" "$DST"
+            else
+              echo "Destination $DST already exists and is identical to $SRC - skipping copy"
+            fi
+          fi
+
+          ls -lh bin/
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build get-lyrics binary (with embedded ffmpeg)
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags "-s -w" -o ${{ matrix.get_lyrics_exe }} .
+          ls -lh ${{ matrix.get_lyrics_exe }}
+
+      - name: UPX compress get-lyrics
+        shell: bash
+        run: |
+          if command -v upx &>/dev/null; then
+            upx --best --lzma ${{ matrix.get_lyrics_exe }} || upx --best ${{ matrix.get_lyrics_exe }} || true
+          fi
+          ls -lh ${{ matrix.get_lyrics_exe }}
+
+      - name: Package FFmpeg
+        shell: bash
+        run: |
+          mkdir -p dist/ffmpeg-${{ matrix.platform }}
+          cp bin/${{ matrix.ffmpeg_exe }} dist/ffmpeg-${{ matrix.platform }}/
+          cd dist
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            7z a -ttar ffmpeg-${{ matrix.platform }}.tar ffmpeg-${{ matrix.platform }}/
+            7z a -tgzip ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}.tar
+          else
+            tar -czf ffmpeg-${{ matrix.platform }}.tar.gz ffmpeg-${{ matrix.platform }}/
+          fi
+          ls -lh ffmpeg-${{ matrix.platform }}.tar.gz
+
+      - name: Package get-lyrics
+        shell: bash
+        run: |
+          mkdir -p dist/get-lyrics-${{ matrix.platform }}
+          cp ${{ matrix.get_lyrics_exe }} dist/get-lyrics-${{ matrix.platform }}/
+          cd dist
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            7z a -ttar get-lyrics-${{ matrix.platform }}.tar get-lyrics-${{ matrix.platform }}/
+            7z a -tgzip get-lyrics-${{ matrix.platform }}.tar.gz get-lyrics-${{ matrix.platform }}.tar
+          else
+            tar -czf get-lyrics-${{ matrix.platform }}.tar.gz get-lyrics-${{ matrix.platform }}/
+          fi
+          ls -lh get-lyrics-${{ matrix.platform }}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.platform }}
+          path: dist/ffmpeg-${{ matrix.platform }}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: get-lyrics-${{ matrix.platform }}
+          path: dist/get-lyrics-${{ matrix.platform }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Display structure
+        run: ls -R dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*.tar.gz
+          generate_release_notes: true
