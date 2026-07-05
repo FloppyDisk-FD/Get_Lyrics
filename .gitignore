@@ -1,7 +1,7 @@
 *.log
-**/node_modules
 lyric.txt
-**/ffmpeg.*
+node_modules
 /bin/
 /get-lyrics
+/get-lyrics.exe
 /dist/
